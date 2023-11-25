@@ -75,6 +75,20 @@ async function run() {
       res.send({result,deleteResult})  
     })
 
+    app.get('/upvoteData/:productId',async(req,res)=>{
+      const productId = req.params.productId
+      const query = {productId : productId}
+      const result = await Upvote.find(query).toArray()
+      res.send(result)
+    })
+
+    app.get('/downVoteData/:productId',async(req,res)=>{
+      const productId = req.params.productId
+      const query = {productId : productId}
+      const result = await Downvote.find(query).toArray()
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
