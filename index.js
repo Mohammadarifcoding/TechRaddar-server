@@ -25,16 +25,62 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+const AllItem = client.db('Tech_Raddar').collection('AllProduct')
+const Upvote = client.db('Tech_Raddar').collection('Upvote')
+const Downvote = client.db('Tech_Raddar').collection('Downvote')
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+
+    app.get('/featured',async(req,res)=>{
+        const query = {
+            Featured : true
+            }
+            const sortValue = {
+              Date: -1
+            }
+        const result = await AllItem.find(query).sort(sortValue).toArray()
+        res.send(result)
+    })
+
+// Vote related Api
+    app.post('/upVote/:productId/:email',async(req,res)=>{
+      const email = req.params.email
+      const productId = req.params.productId
+
+      const body = {email,productId}
+      const query = {email : email , productId : productId}
+      const check = await Upvote.findOne(query)
+      if(check){
+        return res.send({message:'Already Voted'})
+      }
+      const result = await Upvote.insertOne(body)
+      const deleteResult = await Downvote.deleteOne(query)
+      res.send({result,deleteResult})  
+    })
+    app.post('/downVote/:productId/:email',async(req,res)=>{
+      const email = req.params.email
+      const productId = req.params.productId
+
+      const body = {email,productId}
+      const query = {email : email , productId : productId}
+      const check = await Downvote.findOne(query)
+      if(check){
+        return res.send({message:'Already down Voted'})
+      }
+      const result = await Downvote.insertOne(body)
+      const deleteResult = await Upvote.deleteOne(query)
+      res.send({result,deleteResult})  
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
-    await client.close();
+    
   }
 }
 run().catch(console.dir);
