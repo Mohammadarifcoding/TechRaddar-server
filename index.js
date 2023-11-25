@@ -117,10 +117,12 @@ async function run() {
 
     // Search Section
     app.post('/search',async(req,res)=>{
+      const page = req.body.page
+      const size = req.body.size
     const tag = req.body?.tagsList
     console.log(req.body.tagsList)
     if(req.body.tagsList.length == 0){
-      const find = await AllItem.find().toArray()
+      const find = await AllItem.find().skip(page * size).limit(size).toArray()
       return res.send(find)
     }
     const arrayData = tag?.map(item => item.text)
@@ -130,10 +132,22 @@ async function run() {
         $match: {
               Tags : { $in: arrayData }
         }
+      },
+      {
+        $skip:page*size
+      },
+      {
+        $limit:size
       }
     ]).toArray()
-   
+    console.log(page,size)
     res.send(aggre)
+    })
+
+    app.get('/itemlength',async(req,res)=>{
+      const result = await AllItem.estimatedDocumentCount()
+      console.log(result)
+      res.send({result})
     })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
