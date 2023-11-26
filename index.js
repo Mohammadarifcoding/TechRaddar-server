@@ -26,16 +26,58 @@ const client = new MongoClient(uri, {
 const AllItem = client.db("Tech_Raddar").collection("AllProduct");
 const Upvote = client.db("Tech_Raddar").collection("Upvote");
 const Downvote = client.db("Tech_Raddar").collection("Downvote");
+const User = client.db("Tech_Raddar").collection("User");
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+
+  //  Verify Token
+
+  const verifyToken = (req,res,next)=>{
+    console.log(req.headers)
+    console.log(req.headers.authorization)
+    if(!req.headers.authorization){
+      return res.status(401).send({ message : 'No accesss'})
+    }
+    const token = req.headers.authorization.split(' ')[1]
+    jwt.verify(token,"fffff", function (err,decoded){
+      if(err){
+        return res.status(401).send({ message : "Forbidden Access"})
+      }
+      req.decoded = decoded
+      next()
+    })
+  }
+
+
+    // user data insert
+
+    app.post("/users", async (req, res) => {
+      const email = req.body.email;
+      const find = await User.find({ email: email }).toArray();
+      if (find) {
+        return res.send({ message: "Already user registred" });
+      }
+      const data = { email: email };
+      const result = await User.insertOne(data);
+      res.send(result);
+    });
+
+    //  jwt token
+
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, "fffff", { expiresIn: "1hr" });
+      res.send({ token });
+    });
+
     app.get("/featured", async (req, res) => {
       const query = {
         Featured: true,
-        
-       Status : true
+
+        Status: true,
       };
       const sortValue = {
         Date: -1,
@@ -59,8 +101,6 @@ async function run() {
       const result = await Upvote.insertOne(body);
       const deleteResult = await Downvote.deleteOne(query);
 
-      
-
       res.send({ result, deleteResult });
     });
     app.post("/downVote/:productId/:email", async (req, res) => {
@@ -72,7 +112,7 @@ async function run() {
       const check = await Downvote.findOne(query);
       if (check) {
         const deleteResult = await Downvote.deleteOne(query);
-        return res.send(deleteResult)
+        return res.send(deleteResult);
       }
       const result = await Downvote.insertOne(body);
       const deleteResult = await Upvote.deleteOne(query);
@@ -83,8 +123,7 @@ async function run() {
       const productId = req.params.productId;
       const query = { productId: productId };
       const result = await Upvote.find(query).toArray();
-      
-      
+
       res.send(result);
     });
 
@@ -95,58 +134,62 @@ async function run() {
       res.send(result);
     });
 
-    app.put('/updateUPVote/:productId',async(req,res)=>{
+    app.put("/updateUPVote/:productId", async (req, res) => {
       const productId = req.params.productId;
-      const body = req.body.vote
+      const body = req.body.vote;
       const updateDoc = {
-        $set : { 
-         Up_Vote : body }
-      }
-      const filter = {Product_id : parseInt(productId)}
-      const resultsecond = await AllItem.updateOne(filter,updateDoc)
-      res.send(resultsecond)
-    })
-
+        $set: {
+          Up_Vote: body,
+        },
+      };
+      const filter = { Product_id: parseInt(productId) };
+      const resultsecond = await AllItem.updateOne(filter, updateDoc);
+      res.send(resultsecond);
+    });
 
     // Trending Section
 
-    app.get('/trending',async(req,res)=>{
-      const query = { Up_Vote : -1 }
-      const result = await AllItem.find({ Status : true }).sort(query).limit(6).toArray()
-      res.send(result)
-    })
-
+    app.get("/trending", async (req, res) => {
+      const query = { Up_Vote: -1 };
+      const result = await AllItem.find({ Status: true })
+        .sort(query)
+        .limit(6)
+        .toArray();
+      res.send(result);
+    });
 
     // Search Section
-    app.post('/search',async(req,res)=>{
-      const page = req.body.page
-      const size = req.body.size
-    const tag = req.body?.tagsList
-    console.log(req.body.tagsList)
-    if(req.body.tagsList.length == 0){
-      const find = await AllItem.find({Status : true}).skip(page * size).limit(size).toArray()
-      return res.send(find)
-    }
-    const arrayData = tag?.map(item => item.text)
-    console.log(arrayData)
-    const aggre = await AllItem.aggregate([
-      {
-        $match: {
-              Tags : { $in: arrayData },
-              Status: true
-              
-        }
+    app.post("/search", async (req, res) => {
+      const page = req.body.page;
+      const size = req.body.size;
+      const tag = req.body?.tagsList;
+      console.log(req.body.tagsList);
+      if (req.body.tagsList.length == 0) {
+        const find = await AllItem.find({ Status: true })
+          .skip(page * size)
+          .limit(size)
+          .toArray();
+        return res.send(find);
       }
-    ]).toArray()
-    console.log(page,size)
-    res.send(aggre)
-    })
+      const arrayData = tag?.map((item) => item.text);
+      console.log(arrayData);
+      const aggre = await AllItem.aggregate([
+        {
+          $match: {
+            Tags: { $in: arrayData },
+            Status: true,
+          },
+        },
+      ]).toArray();
+      console.log(page, size);
+      res.send(aggre);
+    });
 
-    app.get('/itemlength',async(req,res)=>{
-      const result = await AllItem.estimatedDocumentCount()
-      console.log(result)
-      res.send({result})
-    })
+    app.get("/itemlength", async (req, res) => {
+      const result = await AllItem.estimatedDocumentCount();
+      console.log(result);
+      res.send({ result });
+    });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
