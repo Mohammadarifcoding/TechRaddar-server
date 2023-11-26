@@ -136,10 +136,7 @@ async function run() {
               Status: true
               
         }
-      },
-        {
-          $sort : 1
-        }
+      }
     ]).toArray()
     console.log(page,size)
     res.send(aggre)
