@@ -34,6 +34,8 @@ async function run() {
     app.get("/featured", async (req, res) => {
       const query = {
         Featured: true,
+        
+       Status : true
       };
       const sortValue = {
         Date: -1,
@@ -110,7 +112,7 @@ async function run() {
 
     app.get('/trending',async(req,res)=>{
       const query = { Up_Vote : -1 }
-      const result = await AllItem.find().sort(query).limit(6).toArray()
+      const result = await AllItem.find({ Status : true }).sort(query).limit(6).toArray()
       res.send(result)
     })
 
@@ -122,7 +124,7 @@ async function run() {
     const tag = req.body?.tagsList
     console.log(req.body.tagsList)
     if(req.body.tagsList.length == 0){
-      const find = await AllItem.find().skip(page * size).limit(size).toArray()
+      const find = await AllItem.find({Status : true}).skip(page * size).limit(size).toArray()
       return res.send(find)
     }
     const arrayData = tag?.map(item => item.text)
@@ -130,15 +132,14 @@ async function run() {
     const aggre = await AllItem.aggregate([
       {
         $match: {
-              Tags : { $in: arrayData }
+              Tags : { $in: arrayData },
+              Status: true
+              
         }
       },
-      {
-        $skip:page*size
-      },
-      {
-        $limit:size
-      }
+        {
+          $sort : 1
+        }
     ]).toArray()
     console.log(page,size)
     res.send(aggre)
