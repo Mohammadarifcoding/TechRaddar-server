@@ -27,6 +27,8 @@ const AllItem = client.db("Tech_Raddar").collection("AllProduct");
 const Upvote = client.db("Tech_Raddar").collection("Upvote");
 const Downvote = client.db("Tech_Raddar").collection("Downvote");
 const User = client.db("Tech_Raddar").collection("User");
+const Reported = client.db("Tech_Raddar").collection("Reported");
+const ReViewed = client.db("Tech_Raddar").collection("Reviews");
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -56,11 +58,14 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       const email = req.body.email;
-      const find = await User.find({ email: email }).toArray();
+      
+      const find = await User.findOne({ email: email });
+      
       if (find) {
         return res.send({ message: "Already user registred" });
       }
       const data = { email: email };
+      
       const result = await User.insertOne(data);
       res.send(result);
     });
@@ -190,11 +195,46 @@ async function run() {
       console.log(result);
       res.send({ result });
     });
+
+
+    // product details data
+    app.get('/products/:productId',async(req,res)=>{
+      const productId = req.params.productId
+      const query = {Product_id : parseInt(productId) , Status : true}
+      const result = await AllItem.findOne(query)
+      res.send(result)
+    })
     // Send a ping to confirm a successful connection
+   
+
+    // Report about product
+
+    app.post('/reported',async(req,res)=>{
+      const item = req.body
+      const result = await Reported.insertOne(item)
+      res.send(result)
+    })
+
+   
+    // Post Review
+    app.post('/review',async(req,res)=>{
+      const review = req.body
+      const result = await ReViewed.insertOne(review)
+      res.send(result)
+    }) 
+
+    // get review
+    app.get('/review/:productId',async(req,res)=>{
+      const productId = req.params.productId
+      const query = {productId : parseInt(productId)}
+      const result = await ReViewed.find(query).toArray()
+      res.send(result)
+    })
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+    
   } finally {
     // Ensures that the client will close when you finish/error
   }
