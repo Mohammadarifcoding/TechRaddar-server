@@ -4,6 +4,7 @@ const port = 5000;
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const stripe = require('stripe')('sk_test_51OEkzgLa09z8fqkrmW2cBU3HOxWViDe9K3qiuevlB5mSz97rxDam8503k4OQNQS7kKIFJm5KOfYSjHk4eAeQ0a6H00rLBo6KdD')
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 // Tech_Raddar
@@ -29,6 +30,7 @@ const Downvote = client.db("Tech_Raddar").collection("Downvote");
 const User = client.db("Tech_Raddar").collection("User");
 const Reported = client.db("Tech_Raddar").collection("Reported");
 const ReViewed = client.db("Tech_Raddar").collection("Reviews");
+const Payment = client.db("Tech_Raddar").collection("Payment");
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -92,11 +94,12 @@ async function run() {
     });
 
     // Vote related Api
-    app.post("/upVote/:productId/:email", async (req, res) => {
+    app.post("/upVote/:productId/:email/:owner_email", async (req, res) => {
       const email = req.params.email;
       const productId = req.params.productId;
+      const Owner_email = req.params.owner_email;
 
-      const body = { email, productId };
+      const body = { email, productId ,Owner_email};
       const query = { email: email, productId: productId };
       const check = await Upvote.findOne(query);
       if (check) {
@@ -108,11 +111,13 @@ async function run() {
 
       res.send({ result, deleteResult });
     });
-    app.post("/downVote/:productId/:email", async (req, res) => {
+    app.post("/downVote/:productId/:email/:owner_email", async (req, res) => {
       const email = req.params.email;
       const productId = req.params.productId;
+      const Owner_email = req.params.owner_email;
 
-      const body = { email, productId };
+
+      const body = { email, productId ,Owner_email};
       const query = { email: email, productId: productId };
       const check = await Downvote.findOne(query);
       if (check) {
@@ -207,6 +212,14 @@ async function run() {
     // Send a ping to confirm a successful connection
    
 
+    // update product get data 
+    app.get('/updateProductGet/:productId',async(req,res)=>{
+      const productId = req.params.productId
+      const query = {Product_id : parseInt(productId)}
+      const result = await AllItem.findOne(query)
+      res.send(result)
+    })
+
     // Report about product
 
     app.post('/reported',async(req,res)=>{
@@ -230,6 +243,170 @@ async function run() {
       const result = await ReViewed.find(query).toArray()
       res.send(result)
     })
+
+  //  Dashboard
+
+  // my profile
+
+  app.get('/myProfile/:email',async(req,res)=>{
+    
+    const email = req.params.email
+    const productsCount = await AllItem.countDocuments({ Owner_email: email });
+
+    const upvotesCount = await Upvote.countDocuments({ Owner_email: email });
+
+    const downvotesCount = await Downvote.countDocuments({ Owner_email: email });
+
+    const result = {
+      products: productsCount,
+      upvotes: upvotesCount,
+      downvotes: downvotesCount
+    };
+    res.send(result)
+  })
+
+
+  // Add Product
+  app.post('/products',async(req,res)=>{
+    const body = req.body
+    const result = await AllItem.insertOne(body)
+    res.send(result)
+  })
+
+  // Create Payment instance
+
+  app.post('/create-payment-intent',async(req,res)=>{
+    const {totalPayment} = req.body
+    
+    const amount = parseInt(totalPayment * 100)
+    console.log(amount)
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency : 'usd',
+      payment_method_types: ["card"]
+    })
+    res.send({clientSecret : paymentIntent.client_secret})
+})
+
+
+  app.post('/payments',async(req,res)=>{
+    const payment = req.body
+    const value = await Payment.insertOne(payment)
+    res.send(value)
+  })
+
+  app.get('/checkUser/:email',async(req,res)=>{
+     const email = req.params.email
+     let value = false
+     const find = await Payment.findOne({email : email})
+     if(find){
+      value = true
+     }
+     res.send({value})
+  })
+
+  app.get('/givingAcess/:email',async(req,res)=>{
+    const email = req.params.email
+    let value = false
+    const find = await AllItem.find({Owner_email: email}).toArray()
+    const findPayment = await Payment.findOne({email : email})
+    if(find.length == 0 || findPayment){
+      value = true
+    }
+    res.send({value})
+  })
+
+
+  // update product data
+ app.patch('/productsData/:productId',async(req,res)=>{
+  console.log(req.body)
+  const product = req.body
+  const query = {
+    Product_id :
+    parseInt(req.params.productId)}
+  
+    const updateDoc = {
+      $set:{
+        Product_image : product.Product_image ,
+        ownerName: product.ownerName,
+        Owner_email : product.Owner_email,
+        Product_name: product.Product_name,
+        Tags : product.Tags,
+        External_Links : product.External_Links,
+        Description : product.Description     
+      }
+    }
+    const result = await AllItem.updateOne(query,updateDoc)
+  res.send(result)
+ })
+
+  app.get('/gettingOwnProduct/:email',async(req,res)=>{
+    const email  = req.params.email
+//     const Upvote = client.db("Tech_Raddar").collection("Upvote");
+// const Downvote = client.db("Tech_Raddar").collection("Downvote");
+    const agg = await AllItem.aggregate([
+      {
+        $match: {
+          Owner_email: email,
+        },
+      },
+      {
+        $lookup: {
+          from: 'Downvote',
+          let: { localProductId: '$Product_id', localOwnerEmail: '$Owner_email' },
+          pipeline:[
+            { 
+              $match: {
+                $expr: {
+                  $and : [
+                    {$eq : [{$toInt : '$productId'},'$$localProductId']},
+                    {$eq : ['$Owner_email','$$localOwnerEmail']}
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'totalDown',
+        },
+      },
+      {
+        $lookup: {
+          from: 'Upvote',
+          let: { localProductId: '$Product_id', localOwnerEmail: '$Owner_email' },
+          pipeline:[
+            { 
+              $match: {
+                $expr: {
+                  $and : [
+                    {$eq : [{$toInt : '$productId'},'$$localProductId']},
+                    {$eq : ['$Owner_email','$$localOwnerEmail']}
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'totalUp',
+        },
+      },
+    ]).toArray()
+    res.send(agg)
+
+  })
+
+  app.delete('/deleteProduct/:productId',async(req,res)=>{
+    const query = {productId : req.params.productId}
+    console.log(req.params.productId)
+    const quy = { Product_id : parseInt(req.params.productId)}
+    const upvote = await Upvote.deleteMany(query)
+    const DownVote = await Downvote.deleteMany(query)
+    const Product = await AllItem.deleteOne(quy)
+    const reported = await Reported.deleteMany(query)
+    res.send({upvote,DownVote,Product,reported})
+  })
+    
+
+
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
