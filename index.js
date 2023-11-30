@@ -31,6 +31,7 @@ const User = client.db("Tech_Raddar").collection("User");
 const Reported = client.db("Tech_Raddar").collection("Reported");
 const ReViewed = client.db("Tech_Raddar").collection("Reviews");
 const Payment = client.db("Tech_Raddar").collection("Payment");
+const Coupon = client.db("Tech_Raddar").collection("Coupon");
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -60,13 +61,14 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       const email = req.body.email;
+      const name = req.body.name
       
       const find = await User.findOne({ email: email });
       
       if (find) {
         return res.send({ message: "Already user registred" });
       }
-      const data = { email: email };
+      const data = { email: email , role:'User' , name:name };
       
       const result = await User.insertOne(data);
       res.send(result);
@@ -83,8 +85,7 @@ async function run() {
     app.get("/featured", async (req, res) => {
       const query = {
         Featured: true,
-
-        Status: true,
+        Status:"Accepted"
       };
       const sortValue = {
         Date: -1,
@@ -161,7 +162,7 @@ async function run() {
 
     app.get("/trending", async (req, res) => {
       const query = { Up_Vote: -1 };
-      const result = await AllItem.find({ Status: true })
+      const result = await AllItem.find({ Status:"Accepted" })
         .sort(query)
         .limit(6)
         .toArray();
@@ -175,7 +176,7 @@ async function run() {
       const tag = req.body?.tagsList;
       console.log(req.body.tagsList);
       if (req.body.tagsList.length == 0) {
-        const find = await AllItem.find({ Status: true })
+        const find = await AllItem.find({ Status:"Accepted" })
           .skip(page * size)
           .limit(size)
           .toArray();
@@ -187,7 +188,7 @@ async function run() {
         {
           $match: {
             Tags: { $in: arrayData },
-            Status: true,
+            Status:"Accepted"
           },
         },
       ]).toArray();
@@ -205,7 +206,7 @@ async function run() {
     // product details data
     app.get('/products/:productId',async(req,res)=>{
       const productId = req.params.productId
-      const query = {Product_id : parseInt(productId) , Status : true}
+      const query = {Product_id : parseInt(productId)}
       const result = await AllItem.findOne(query)
       res.send(result)
     })
@@ -406,6 +407,239 @@ async function run() {
     
 
 
+  // Admin Checking
+   
+  app.get('/adminCheck/:email',async(req,res)=>{
+    const email = req.params.email
+    let value = false
+    const query = {email : email }
+    const find = await User.findOne(query)
+    if(find){
+      value = find.role == 'Admin'
+    }
+    res.send(value)
+  })
+
+  app.get('/moderatorCheck/:email',async(req,res)=>{
+    const email = req.params.email
+    let value = false
+    const query = {email : email }
+    const find = await User.findOne(query)
+    if(find){
+      value = find.role == 'Moderator'
+    }
+    res.send(value)
+  })
+
+  app.get('/AllUser',async(req,res)=>{
+    const result = await User.find().toArray()
+    res.send(result)
+  })
+
+
+  app.get('/reportedProducts',async(req,res)=>{
+    const result  = await Reported.find().toArray()
+    res.send(result)
+  })
+
+  app.delete('/deleteReported/:productId',async(req,res)=>{
+     const productId = req.params.productId
+     const query = {productId : productId}
+     const querytwo = { Product_id : parseInt(productId)}
+     const result = await Reported.deleteMany(query)
+     const resultSecond = await AllItem.deleteOne(querytwo)
+     res.send({result,resultSecond})
+  })
+ 
+  app.delete('/ignoreReport/:productId',async(req,res)=>{
+    const productId = req.params.productId
+    const query = {productId: productId}
+    const result = await Reported.deleteOne(query)
+    res.send(result)
+  })
+
+  app.get('/productQuequ',async(req,res)=>{
+    const result = await AllItem.aggregate([
+      {
+        $sort : {
+          Status : -1
+        }
+      }
+    ]).toArray()
+    res.send(result)
+  })
+
+  app.put('/makeFeature/:productId',async(req,res)=>{
+    const productId = req.params.productId
+    const query = {Product_id : parseInt(productId)}
+    console.log(query)
+    const updateDoc = {
+      $set : {
+        Featured : true
+      }
+    }
+    const result = await AllItem.updateOne(query,updateDoc)
+    res.send(result)
+  })
+
+  app.put('/RemoveFeature/:productId',async(req,res)=>{
+    const productId = req.params.productId
+    const query = {Product_id : parseInt(productId)}
+    console.log(query)
+    const updateDoc = {
+      $set : {
+        Featured : false
+      }
+    }
+    const result = await AllItem.updateOne(query,updateDoc)
+    res.send(result)
+  })
+
+  app.put('/acceptedProduct/:productid',async(req,res)=>{
+    const productId = req.params.productid
+    const query = { Product_id : parseInt(productId)}
+    const updateDoc = {
+      $set:{
+        Status : 'Accepted'
+      }
+    }
+    const result = await AllItem.updateOne(query,updateDoc)
+    res.send(result)
+  })
+  app.put('/RejectProduct/:productid',async(req,res)=>{
+    const productId = req.params.productid
+    const query = { Product_id : parseInt(productId)}
+    const updateDoc = {
+      $set:{
+        Status : 'Rejected'
+      }
+    }
+    const result = await AllItem.updateOne(query,updateDoc)
+    res.send(result)
+  })
+
+
+  // manage User
+ 
+  app.get('/users',async(req,res)=>{
+    const result = await User.find().toArray()
+    res.send(result)
+  })
+
+  // make admin make moderator
+  app.put('/makeAdmin/:email',async(req,res)=>{
+    const email = req.params.email
+    const query = {email : email}
+    const updateDoc = {
+      $set:{
+        role : 'Admin'
+      }
+    }
+    const result = await User.updateOne(query,updateDoc)
+    res.send(result)
+  })
+
+
+  app.put('/makeModerator/:email',async(req,res)=>{
+    const email = req.params.email
+    const query = {email : email}
+    const updateDoc = {
+      $set:{
+        role : 'Moderator'
+      }
+    }
+    const result = await User.updateOne(query,updateDoc)
+    res.send(result)
+  })
+
+  app.delete('/deleteUser/:email',async(req,res)=>{
+    const email = req.params.email
+    const query = {email:email}
+    const result = await User.deleteOne(query)
+    res.send(result)
+  })
+
+  app.get('/statsProduct',async(req,res)=>{
+    const result = await AllItem.aggregate([
+        {
+          $group: {
+            _id: '$Status',
+           count : {$sum : 1}
+          }
+        }
+    ]).toArray()
+
+    const contributor = await AllItem.aggregate([
+      {
+        $group : {
+          _id : '$Owner_email',
+          count: {$sum : 1}
+        }
+      },
+      {
+        $project : {
+          _id : 0,
+          email : '$_id',
+          count:1
+        }
+      }
+    ]).toArray()
+ const Reviews = await ReViewed.estimatedDocumentCount()
+ const Report =await Reported.estimatedDocumentCount()
+ const resultThird = await Upvote.estimatedDocumentCount()
+ const resultfourth = await Downvote.estimatedDocumentCount()
+ const usersdata = await User.estimatedDocumentCount()
+
+    const countdata = {
+      Accepted : 0,
+      Pending: 0,
+      Rejected: 0,
+      
+    }
+    const totalVote = {
+      Upvote : resultThird,
+      DownVote : resultfourth
+    }
+    const feedback = {
+      Reported :Report,
+      Reviews:Reviews
+    }
+    const users = {
+      user : usersdata
+    }
+    
+
+    result.forEach((sta)=>{
+      if(sta._id == 'Accepted'){
+        countdata.Accepted = sta.count
+      }
+      else if (sta._id =='Pending'){
+        countdata.Pending = sta.count
+      }
+      else if(sta._id == 'Rejected'){
+        countdata.Rejected = sta.count
+      }
+    })
+    res.send({countdata,totalVote,feedback ,users , contributor})
+  })
+
+  app.get('/Coupons', async(req,res)=>{
+    const result = await Coupon.find().toArray()
+    res.send(result)
+  })
+
+
+  app.get('/Coupon/:id',async(req,res)=>{
+    const couponId = req.params.id
+    const query = {couponId : couponId}
+    const result = await Coupon.findOne(query)
+    res.send(result)
+  })
+  app.post('/Coupons',async(req,res)=>{
+    const body = req.body
+    const result = await Coupon.insertOne(body)
+    res.send(result)
+  })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
