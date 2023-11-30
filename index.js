@@ -4,7 +4,7 @@ const port = 5000;
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const stripe = require('stripe')('sk_test_51OEkzgLa09z8fqkrmW2cBU3HOxWViDe9K3qiuevlB5mSz97rxDam8503k4OQNQS7kKIFJm5KOfYSjHk4eAeQ0a6H00rLBo6KdD')
+const stripe = require('stripe')(process.env.STRIPE)
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 // Tech_Raddar
@@ -35,7 +35,7 @@ const Coupon = client.db("Tech_Raddar").collection("Coupon");
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+   
 
 
   //  Verify Token
@@ -641,10 +641,17 @@ async function run() {
     res.send(result)
   })
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+  app.get('/verifyCoupon/:couponCode',async(req,res)=>{
+    const couponCode = req.params.couponCode
+    const query = { couponCode : couponCode}
+    const result = await Coupon.findOne(query)
+    let amountPercent = 0
+   if(result){
+    amountPercent = result.discount
+   }
+    res.send({discount : amountPercent})
+  })
+  
     
   } finally {
     // Ensures that the client will close when you finish/error
